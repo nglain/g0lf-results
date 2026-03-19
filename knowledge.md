@@ -39,8 +39,19 @@ On 1xH100 with ~890 steps, we're compute-bound. ALL architecture changes trade s
 - NTK RoPE eval: TODO
 - Any other eval-time compute trick
 
+## NEW competition intel (2026-03-19 16:30)
+- **PR #85: 92-experiment autoresearch + sliding window = pre-quant 1.2156 BPB** — BEATS BASELINE!
+  - Similar approach to ours (autoresearch). They ran 92 experiments.
+  - Key: they use 8xH100 with full 10min budget.
+- **PR #81: depth recurrence 4×3 + SwiGLU + int6 = 1.2269 on 4×H100** — competitive!
+  - First time depth recurrence works. Needs SwiGLU + int6 + enough compute.
+- **PR #84: mirrored-recurrence MLX** — non-record
+- 85 PRs total, 0 merged. Race for first accepted record is OPEN.
+- **Doc-isolated eval (PR #77 ablation)**: reset state between documents = -0.011 FREE. Easy to implement.
+
 ## Priority queue (updated)
-1. ✅ Sliding window eval — DONE, confirmed -0.012 bpb (stride=2048), more with stride=64
+1. ✅ Sliding window eval — DONE, confirmed -0.012 bpb
 2. NTK RoPE eval-time scaling (PR #60, free improvement)
-3. Try warmdown_iters tuning (shorter warmdown since we stop early)
-4. Optimize for 8xH100 final: set defaults to competition-proven params
+3. Doc-isolated eval (reset between docs, free -0.011 from PR #77 ablation)
+4. Try warmdown_iters tuning (shorter warmdown since we stop early)
+5. Optimize for 8xH100 final: set defaults to competition-proven params
