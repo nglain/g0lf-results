@@ -70,6 +70,7 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    int6_ste = bool(int(os.environ.get("INT6_STE", "0")))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -599,9 +600,18 @@ class RMSNorm(nn.Module):
 
 class CastedLinear(nn.Linear):
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    # When int6_ste=True, fake-quantize weights during forward for quantization-aware training.
+    int6_ste: bool = False
+
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if self.int6_ste and self.training:
+            scale = w.abs().amax(dim=1, keepdim=True) / 31.0
+            scale = scale.clamp_min(1e-8)
+            w_q = (w / scale).round().clamp(-31, 31) * scale
+            w = w + (w_q - w).detach()  # STE: gradients flow through, forward sees quantized
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -987,6 +997,10 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    if args.int6_ste:
+        for module in base_model.modules():
+            if isinstance(module, CastedLinear):
+                module.int6_ste = True
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 

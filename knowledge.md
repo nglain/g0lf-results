@@ -4,10 +4,11 @@
 Sliding window eval CONFIRMED working (-0.012 bpb at stride=2048). Next: try NTK RoPE eval-time scaling.
 
 ## Лучший результат
-- **exp_025 (9L, seq4096, H100/10min): 1.3415 bpb with sliding eval** (stride=2048)
-  - Standard roundtrip: 1.3537, sliding: 1.3415 = -0.012 bpb FREE
-- Target baseline: **1.2244 bpb** (8xH100, 10min) — gap: 0.117 (with slide eval)
-- NO val-only training (forbidden)
+- **exp_029 (9L, seq4096, 8xH100/10min): 1.2099 bpb, roundtrip 1.2156**
+  - 7439 steps at 80ms/step. 15.8MB compressed (tight!)
+  - BELOW 1.2244 baseline! With sliding eval expect ~1.20 or lower.
+- Target baseline: **1.2244 bpb** — BEATEN by 0.009 (roundtrip)
+- Competition frontier: ~1.16 BPB
 
 ## Current train_gpt.py state
 - Defaults: 3 layers, dim=512, lr=0.10 (for quick screening)
@@ -83,34 +84,7 @@ This means LR decays from step 0! Setting WARMDOWN_ITERS=100 gave +0.0013 BPB.
 9. zstd-22 compression instead of zlib
 10. Sliding window stride=64 (eval, ~0.012 over stride=512)
 
-### Competition frontier (2026-03-20 01:00)
-- **Official SOTA (merged record)**: 1.1574 BPB (WarmdownQuantization)
+### Competition frontier (2026-03-19 22:30)
 - **Without val-only**: ~1.157 BPB (PR #114)
-- **With val-only**: 0.959 BPB (PR #120)
-- 133 PRs total, 7 records merged.
-
-## ═══ UNIQUE EDGE: Huginn Depth Recurrence + Eval Unrolling ═══
-**After establishing baseline on 8xH100, consider this as our differentiation:**
-
-Architecture: Prelude(1) → Core(2 shared blocks × K loops) → Coda(1)
-- Physical blocks: 4. At K=8: 18 effective depth. Artifact: ~6MB.
-- Train K=8, eval K=16-32 = FREE effective depth increase.
-- Nobody in competition has cracked eval unrolling.
-
-Key implementation:
-```python
-# Core loop (simplified):
-state = prelude_output  # or zeros
-for i in range(K):
-    state = state + input_embeds  # inject each iteration
-    for block in core_blocks:
-        state = block(state, x0)
-# Eval: just increase K. Same weights, more depth, better BPB.
-```
-
-Stability: sandwich norm (pre+post), init loop scales near zero.
-torch.compile incompatible with dynamic loop — disable for forward.
-
-**Why this wins**: store 4 blocks (~6MB), eval as 32+ layers.
-Room for MLP 3x + int6 within 16MB. Combined with proven eval tricks.
-PR #81 got 1.2269 with recurrence but WITHOUT eval unrolling or proven stack.
+- **With val-only**: 0.959 BPB (PR #120, by Devin AI)
+- 120 PRs total, 0 merged. Winning meta: int6 STE + MLP 3x + seq4096 + sliding window + fp16 embed

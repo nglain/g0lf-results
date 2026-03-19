@@ -335,5 +335,41 @@
     "reason": "Marginal improvement: 1.3489 vs 1.3494 (warmdown=400). But 14.1MB compressed — less headroom. Warmdown trend: 1200→1.354, 400→1.349, 200→1.349.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_029",
+    "hypothesis": "8xH100 baseline: 9L seq4096 warmdown=200 lr=0.04 — test full compute",
+    "val_bpb": 1.2099,
+    "val_bpb_roundtrip": 1.2156,
+    "compressed_bytes": 15811950,
+    "steps_completed": 7439,
+    "status": "keep",
+    "reason": "HUGE win: 1.2156 roundtrip — below 1.2244 baseline! 7439 steps at 80ms/step. But 15.8MB compressed — very tight on 16MB limit. Need size optimization.",
+    "duration_sec": 600,
+    "gpu": "8xH100"
+  },
+  {
+    "id": "exp_030",
+    "hypothesis": "8xH100: competition Muon (lr=0.02, mom=0.99, warmdown=3000)",
+    "val_bpb": 1.2036,
+    "val_bpb_roundtrip": 1.2103,
+    "compressed_bytes": 15796981,
+    "steps_completed": 6961,
+    "status": "keep",
+    "reason": "Better than exp_029: -0.005 bpb. Competition Muon works with enough steps. But warmdown=3000 starts decay at step ~3961 — too early for 6961 total steps.",
+    "duration_sec": 600,
+    "gpu": "8xH100"
+  },
+  {
+    "id": "exp_031",
+    "hypothesis": "8xH100: competition Muon (lr=0.02, mom=0.99) + warmdown=1500",
+    "val_bpb": 1.2035,
+    "val_bpb_roundtrip": 1.2105,
+    "compressed_bytes": 15808594,
+    "steps_completed": 7021,
+    "status": "discard",
+    "reason": "Same as exp_030 (1.2105 vs 1.2103). Warmdown tuning doesn't help. Bottleneck is elsewhere.",
+    "duration_sec": 600,
+    "gpu": "8xH100"
   }
 ]
