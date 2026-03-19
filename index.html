@@ -206,7 +206,7 @@ async function loadData() {
       const range = (maxBpb - minBpb) || 0.1;
 
       document.getElementById('chart').innerHTML = validExps.map(e => {
-        const height = 20 + ((e.val_bpb - minBpb) / range) * 140;
+        const height = 20 + ((maxBpb - e.val_bpb) / range) * 140;
         return `<div class="bar ${e.status}" style="height:${height}px" onclick="toggleDetail('${e.id}')">
           <div class="bar-label">${e.id.replace('exp_', '')}</div>
           <div class="tooltip">
