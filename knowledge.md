@@ -49,9 +49,20 @@ exp_021: Try seq_len=2048 on 9L — balance between context and total tokens on 
 - NTK RoPE eval: PR #60 (try this)
 - warmdown quant scheduling: PR #61 (try this)
 
+## NEW competition intel (2026-03-19 15:00)
+- **PR #78: vocab 8192 + NorMuon + selective quant = 1.186 BPB** (new strong result!)
+  - Larger vocab reduces tokens/byte → better BPB multiplier
+  - NorMuon = normalized Muon variant (from modded-nanogpt)
+  - Need SP-8192 tokenizer: `python3 data/cached_challenge_fineweb.py --variant sp8192`
+- **PR #77: LoRA TTT = 1.195 BPB** — but ablations show TTT only -0.003
+  - Real gain: doc-isolated eval (-0.011) + sliding window (-0.034)
+- **Credible frontier: ~1.16-1.19 BPB** (sliding window + int6 + MLP 3x or larger vocab)
+
 ## Priority queue
 1. seq_len=2048 (balance context vs total tokens on 1xH100)
 2. MLP 3x expansion (PR #70 approach)
 3. fp16 tok_emb (smaller compressed size → room for more layers)
 4. NTK RoPE at eval (free improvement like slide eval)
 5. int6 middle layers + 10th layer
+6. **Consider**: vocab 8192 (PR #78 approach — 1.186 BPB)
+7. **Consider**: doc-isolated eval (reset state between docs, free -0.011)
