@@ -55,12 +55,21 @@ int6 STE (model trains knowing quant!) + fp16 embed + MLP 3x + NorMuon + SWA (7 
 - **zstd-22**: ~25% better compression than zlib
 - **Doc-isolated eval**: reset state between documents = -0.011 FREE
 
-## Priority queue (updated for 8xH100 final)
+## CRITICAL BUG FIX for 1xH100 (from PR #94)
+⚠️ Default WARMDOWN_ITERS=1200 but we only get ~890-1000 steps on 1xH100.
+This means LR decays from step 0! Setting WARMDOWN_ITERS=100 gave +0.0013 BPB.
+**Try WARMDOWN_ITERS=100 immediately** — may explain why some experiments underperformed.
+
+## Priority queue
+### For 1xH100 (current screening):
 1. ✅ Sliding window eval — DONE
-2. int6 STE (fake-quantize during training) — biggest quant improvement
-3. MLP 3x expansion (with int6 to fit under 16MB)
-4. MTP auxiliary head (training-only gradient enrichment)
-5. SWA over checkpoints during warmdown
-6. Doc-isolated eval (free -0.011)
-7. NTK RoPE eval-time scaling
-8. zstd-22 compression instead of zlib
+2. **WARMDOWN_ITERS=100** (PR #94 fix, free improvement)
+3. Doc-isolated eval (free -0.011)
+
+### For 8xH100 (final submission):
+4. int6 STE (fake-quantize during training)
+5. MLP 3x expansion (with int6 to fit under 16MB)
+6. MTP auxiliary head (training-only gradient enrichment)
+7. SWA over checkpoints during warmdown
+8. NTK RoPE eval-time scaling
+9. zstd-22 compression instead of zlib
