@@ -464,6 +464,18 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
+    # Apply int6 coarsening to specified layers (step=4 rounds int8 values to multiples of 4)
+    int6_layers_str = os.environ.get("INT6_LAYERS", "")
+    if int6_layers_str:
+        int6_indices = set(int(x) for x in int6_layers_str.split(",") if x.strip())
+        for name, q in quantized.items():
+            # Check if this tensor belongs to an int6 layer
+            for idx in int6_indices:
+                if f"blocks.{idx}." in name:
+                    step = 4
+                    quantized[name] = ((q.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
+                    break
+
     obj: dict[str, object] = {
         "__quant_format__": "int8_clean_per_row_v1",
         "quantized": quantized,
