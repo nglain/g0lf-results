@@ -39,19 +39,28 @@ On 1xH100 with ~890 steps, we're compute-bound. ALL architecture changes trade s
 - NTK RoPE eval: TODO
 - Any other eval-time compute trick
 
-## NEW competition intel (2026-03-19 16:30)
-- **PR #85: 92-experiment autoresearch + sliding window = pre-quant 1.2156 BPB** — BEATS BASELINE!
-  - Similar approach to ours (autoresearch). They ran 92 experiments.
-  - Key: they use 8xH100 with full 10min budget.
-- **PR #81: depth recurrence 4×3 + SwiGLU + int6 = 1.2269 on 4×H100** — competitive!
-  - First time depth recurrence works. Needs SwiGLU + int6 + enough compute.
-- **PR #84: mirrored-recurrence MLX** — non-record
-- 85 PRs total, 0 merged. Race for first accepted record is OPEN.
-- **Doc-isolated eval (PR #77 ablation)**: reset state between documents = -0.011 FREE. Easy to implement.
+## COMPETITION FRONTIER UPDATE (2026-03-19 18:00)
+**Frontier moved to 1.160-1.162 BPB.** 89 PRs, 0 merged.
 
-## Priority queue (updated)
-1. ✅ Sliding window eval — DONE, confirmed -0.012 bpb
-2. NTK RoPE eval-time scaling (PR #60, free improvement)
-3. Doc-isolated eval (reset between docs, free -0.011 from PR #77 ablation)
-4. Try warmdown_iters tuning (shorter warmdown since we stop early)
-5. Optimize for 8xH100 final: set defaults to competition-proven params
+### PR #88: 1.1605 BPB (7 techniques stacked)
+MTP auxiliary head (training-only, excluded from artifact) + MLP 3x + fp16 embed + int6 [-31,31] + zstd-22 + seq4096 + sliding window stride=512 + Muon(0.02/0.99/3000)
+
+### PR #89: 1.1622 BPB
+int6 STE (model trains knowing quant!) + fp16 embed + MLP 3x + NorMuon + SWA (7 checkpoints) + sliding window stride=64
+
+### Key new techniques to implement:
+- **MTP auxiliary head**: training-only, free gradient enrichment, zero eval cost
+- **int6 STE**: fake-quantize during training → gap only +0.002 (vs +0.02 post-training)
+- **SWA**: average 7 checkpoints during warmdown, free quality boost
+- **zstd-22**: ~25% better compression than zlib
+- **Doc-isolated eval**: reset state between documents = -0.011 FREE
+
+## Priority queue (updated for 8xH100 final)
+1. ✅ Sliding window eval — DONE
+2. int6 STE (fake-quantize during training) — biggest quant improvement
+3. MLP 3x expansion (with int6 to fit under 16MB)
+4. MTP auxiliary head (training-only gradient enrichment)
+5. SWA over checkpoints during warmdown
+6. Doc-isolated eval (free -0.011)
+7. NTK RoPE eval-time scaling
+8. zstd-22 compression instead of zlib
