@@ -83,7 +83,34 @@ This means LR decays from step 0! Setting WARMDOWN_ITERS=100 gave +0.0013 BPB.
 9. zstd-22 compression instead of zlib
 10. Sliding window stride=64 (eval, ~0.012 over stride=512)
 
-### Competition frontier (2026-03-19 22:30)
+### Competition frontier (2026-03-20 01:00)
+- **Official SOTA (merged record)**: 1.1574 BPB (WarmdownQuantization)
 - **Without val-only**: ~1.157 BPB (PR #114)
-- **With val-only**: 0.959 BPB (PR #120, by Devin AI)
-- 120 PRs total, 0 merged. Winning meta: int6 STE + MLP 3x + seq4096 + sliding window + fp16 embed
+- **With val-only**: 0.959 BPB (PR #120)
+- 133 PRs total, 7 records merged.
+
+## ═══ UNIQUE EDGE: Huginn Depth Recurrence + Eval Unrolling ═══
+**After establishing baseline on 8xH100, consider this as our differentiation:**
+
+Architecture: Prelude(1) → Core(2 shared blocks × K loops) → Coda(1)
+- Physical blocks: 4. At K=8: 18 effective depth. Artifact: ~6MB.
+- Train K=8, eval K=16-32 = FREE effective depth increase.
+- Nobody in competition has cracked eval unrolling.
+
+Key implementation:
+```python
+# Core loop (simplified):
+state = prelude_output  # or zeros
+for i in range(K):
+    state = state + input_embeds  # inject each iteration
+    for block in core_blocks:
+        state = block(state, x0)
+# Eval: just increase K. Same weights, more depth, better BPB.
+```
+
+Stability: sandwich norm (pre+post), init loop scales near zero.
+torch.compile incompatible with dynamic loop — disable for forward.
+
+**Why this wins**: store 4 blocks (~6MB), eval as 32+ layers.
+Room for MLP 3x + int6 within 16MB. Combined with proven eval tricks.
+PR #81 got 1.2269 with recurrence but WITHOUT eval unrolling or proven stack.
