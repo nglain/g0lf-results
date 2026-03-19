@@ -383,5 +383,17 @@
     "reason": "Worse than exp_030 (1.2171 vs 1.2103). Int6 STE slows training and int8 roundtrip penalty is already small (0.007). Not worth it.",
     "duration_sec": 600,
     "gpu": "8xH100"
+  },
+  {
+    "id": "exp_033",
+    "hypothesis": "8xH100: competition Muon + ROPE_BASE=200000",
+    "val_bpb": 1.2008,
+    "val_bpb_roundtrip": 1.2075,
+    "compressed_bytes": 15805270,
+    "steps_completed": 7390,
+    "status": "keep",
+    "reason": "Improvement: -0.003 bpb vs exp_030. ROPE_BASE=200000 confirmed helpful (PR #120). New best roundtrip: 1.2075.",
+    "duration_sec": 600,
+    "gpu": "8xH100"
   }
 ]
