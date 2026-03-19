@@ -190,5 +190,17 @@
     "reason": "Worse than 9L (1.373 vs 1.358). Slower steps (807ms) → fewer steps (744 vs 990). 15.1MB near limit. 9 layers optimal for 1xH100/10min.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_017",
+    "hypothesis": "6 layers, lr=0.04, 10 min — complete 10-min layer sweep",
+    "val_bpb": 1.3573,
+    "val_bpb_roundtrip": 1.3586,
+    "compressed_bytes": 9521981,
+    "steps_completed": 1492,
+    "status": "keep",
+    "reason": "Same bpb as 9L (1.357 vs 1.358) but only 9.5MB vs 12.4MB. 6.5MB headroom! 1492 steps at 402ms/step. 6L is better: same quality, much smaller.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]
