@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parameter Golf — Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0a; color: #e0e0e0; padding: 24px; max-width: 1400px; margin: 0 auto; }
+  h1 { color: #4ade80; margin-bottom: 4px; font-size: 24px; }
+  .subtitle { color: #666; font-size: 14px; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .controls { text-align: right; }
+  .auto-refresh { display: flex; align-items: center; gap: 8px; color: #666; font-size: 12px; }
+  .auto-refresh input { accent-color: #4ade80; }
+  .refresh { color: #666; font-size: 12px; cursor: pointer; border: 1px solid #333; padding: 4px 8px; border-radius: 4px; }
+  .refresh:hover { color: #4ade80; border-color: #4ade80; }
+  #last-update { color: #444; font-size: 11px; margin-top: 4px; }
+
+  /* Stats */
+  .stats { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 14px 18px; min-width: 130px; flex: 1; }
+  .stat-label { color: #888; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-value { font-size: 24px; font-weight: bold; margin-top: 2px; }
+  .stat-sub { color: #555; font-size: 11px; margin-top: 2px; }
+  .green { color: #4ade80; }
+  .blue { color: #60a5fa; }
+  .yellow { color: #fbbf24; }
+  .red { color: #f87171; }
+
+  /* Chart */
+  .chart { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+  .chart h2 { font-size: 13px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .chart-area { height: 180px; position: relative; }
+  .bar-container { display: flex; align-items: flex-end; gap: 3px; height: 100%; }
+  .bar { min-width: 24px; flex: 1; border-radius: 3px 3px 0 0; position: relative; cursor: pointer; transition: all 0.2s; }
+  .bar:hover { filter: brightness(1.3); }
+  .bar.keep { background: linear-gradient(to top, #065f46, #4ade80); }
+  .bar.discard { background: linear-gradient(to top, #7f1d1d, #f87171); }
+  .bar.crash { background: linear-gradient(to top, #333, #666); }
+  .bar-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #555; }
+  .bar .tooltip { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #222; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 11px; white-space: nowrap; z-index: 10; margin-bottom: 6px; line-height: 1.5; }
+  .bar:hover .tooltip { display: block; }
+
+  /* Table */
+  .table-wrap { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 4px; margin-bottom: 24px; overflow-x: auto; }
+  .table-wrap h2 { font-size: 13px; color: #888; padding: 14px 14px 8px; text-transform: uppercase; letter-spacing: 1px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 6px 10px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; position: sticky; top: 0; background: #1a1a1a; }
+  td { padding: 8px 10px; border-bottom: 1px solid #222; font-size: 12px; vertical-align: top; }
+  tr:hover td { background: #222; }
+  tr.expanded td { background: #1f1f1f; }
+  .clickable { cursor: pointer; }
+  .status { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .status.keep { background: #064e3b; color: #4ade80; }
+  .status.discard { background: #450a0a; color: #f87171; }
+  .status.crash { background: #1a1a1a; color: #666; }
+  .delta.positive { color: #f87171; }
+  .delta.negative { color: #4ade80; }
+  .delta.zero { color: #666; }
+  .gpu-tag { padding: 1px 6px; border-radius: 3px; font-size: 10px; background: #1e3a5f; color: #60a5fa; }
+  .detail-row { display: none; }
+  .detail-row.show { display: table-row; }
+  .detail-row td { padding: 12px 16px; background: #151515; border-left: 3px solid #333; }
+  .detail-content { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px; }
+  .detail-content .label { color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-content .value { margin-top: 2px; }
+  .reason-full { grid-column: 1 / -1; line-height: 1.5; color: #aaa; }
+
+  /* Knowledge */
+  .knowledge { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; margin-bottom: 24px; }
+  .knowledge h2 { font-size: 13px; color: #888; padding: 14px 18px 0; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; }
+  .knowledge h2:hover { color: #4ade80; }
+  .knowledge pre { font-size: 11px; white-space: pre-wrap; color: #999; padding: 12px 18px 18px; line-height: 1.6; max-height: 400px; overflow-y: auto; }
+  .collapsed pre { display: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Parameter Golf</h1>
+    <div class="subtitle">OpenAI Model Craft Challenge — Autonomous Agent Dashboard</div>
+  </div>
+  <div class="controls">
+    <div class="auto-refresh">
+      <input type="checkbox" id="auto" checked> <label for="auto">Auto 30s</label>
+      <span class="refresh" onclick="loadData()">Refresh</span>
+    </div>
+    <div id="last-update"></div>
+  </div>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="chart">
+  <h2>BPB Progress</h2>
+  <div class="chart-area">
+    <div class="bar-container" id="chart"></div>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <h2>Experiments</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Hypothesis</th>
+        <th>BPB</th>
+        <th>Delta</th>
+        <th>Size</th>
+        <th>Steps</th>
+        <th>GPU</th>
+        <th>Time</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="experiments"></tbody>
+  </table>
+</div>
+
+<div class="knowledge collapsed" id="knowledge-section" onclick="this.classList.toggle('collapsed')">
+  <h2>Knowledge Base (click to expand)</h2>
+  <pre id="knowledge"></pre>
+</div>
+
+<script>
+const REPO = 'nglain/g0lf-results';
+const BRANCH = 'main';
+
+async function fetchFile(path) {
+  const url = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${path}?t=${Date.now()}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  return res.text();
+}
+
+function toggleDetail(id) {
+  const row = document.getElementById('detail-' + id);
+  if (row) row.classList.toggle('show');
+}
+
+async function loadData() {
+  try {
+    const [expText, knowledgeText] = await Promise.all([
+      fetchFile('experiments.json'),
+      fetchFile('knowledge.md')
+    ]);
+
+    if (!expText) return;
+    const experiments = JSON.parse(expText);
+
+    // Stats
+    const total = experiments.length;
+    const keeps = experiments.filter(e => e.status === 'keep').length;
+    const discards = experiments.filter(e => e.status === 'discard').length;
+    const crashes = experiments.filter(e => e.status === 'crash').length;
+    const bestExp = experiments.filter(e => e.status === 'keep' && e.val_bpb > 0)
+      .sort((a, b) => a.val_bpb - b.val_bpb)[0];
+    const best = bestExp ? bestExp.val_bpb.toFixed(4) : '—';
+    const baselineExp = experiments[0];
+    const baseline = baselineExp ? baselineExp.val_bpb.toFixed(4) : '—';
+    const improvement = bestExp && baselineExp ? (baselineExp.val_bpb - bestExp.val_bpb) : 0;
+    const gpus = [...new Set(experiments.map(e => e.gpu).filter(Boolean))];
+    const totalTime = experiments.reduce((s, e) => s + (e.duration_sec || 0), 0);
+
+    document.getElementById('stats').innerHTML = `
+      <div class="stat">
+        <div class="stat-label">Best BPB</div>
+        <div class="stat-value green">${best}</div>
+        <div class="stat-sub">${bestExp ? bestExp.id : ''}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Baseline</div>
+        <div class="stat-value">${baseline}</div>
+        <div class="stat-sub">${baselineExp?.gpu || ''}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Improvement</div>
+        <div class="stat-value ${improvement > 0 ? 'green' : ''}">${improvement > 0 ? '-' + improvement.toFixed(4) : '—'}</div>
+        <div class="stat-sub">${improvement > 0 ? ((improvement / baselineExp.val_bpb) * 100).toFixed(1) + '%' : ''}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Experiments</div>
+        <div class="stat-value blue">${total}</div>
+        <div class="stat-sub green">${keeps} keep</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Success Rate</div>
+        <div class="stat-value yellow">${total > 0 ? Math.round(keeps / total * 100) : 0}%</div>
+        <div class="stat-sub">${discards} discard${crashes ? ', ' + crashes + ' crash' : ''}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">GPU Time</div>
+        <div class="stat-value">${Math.round(totalTime / 60)}m</div>
+        <div class="stat-sub">${gpus.join(', ')}</div>
+      </div>
+    `;
+
+    // Chart
+    const validExps = experiments.filter(e => e.val_bpb > 0);
+    if (validExps.length > 0) {
+      const maxBpb = Math.max(...validExps.map(e => e.val_bpb));
+      const minBpb = Math.min(...validExps.map(e => e.val_bpb));
+      const range = (maxBpb - minBpb) || 0.1;
+
+      document.getElementById('chart').innerHTML = validExps.map(e => {
+        const height = 20 + ((e.val_bpb - minBpb) / range) * 140;
+        return `<div class="bar ${e.status}" style="height:${height}px" onclick="toggleDetail('${e.id}')">
+          <div class="bar-label">${e.id.replace('exp_', '')}</div>
+          <div class="tooltip">
+            <strong>${e.id}</strong><br>
+            BPB: ${e.val_bpb.toFixed(4)}<br>
+            ${e.hypothesis.substring(0, 60)}<br>
+            ${e.gpu || ''} · ${e.steps_completed || '?'} steps · ${e.duration_sec || '?'}s
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // Table
+    const baselineBpb = baselineExp ? baselineExp.val_bpb : 0;
+    document.getElementById('experiments').innerHTML = experiments.map((e, i) => {
+      const delta = i === 0 ? 0 : (e.val_bpb || 0) - baselineBpb;
+      const deltaClass = delta < -0.001 ? 'negative' : delta > 0.001 ? 'positive' : 'zero';
+      const deltaStr = i === 0 ? '—' : (delta > 0 ? '+' : '') + delta.toFixed(4);
+      const sizeMB = e.compressed_bytes ? (e.compressed_bytes / 1e6).toFixed(1) + ' MB' : '—';
+      const steps = e.steps_completed || '—';
+      const gpu = e.gpu ? `<span class="gpu-tag">${e.gpu}</span>` : '—';
+      const dur = e.duration_sec ? e.duration_sec + 's' : '—';
+      const msPerStep = e.steps_completed && e.duration_sec ? Math.round(e.duration_sec * 1000 / e.steps_completed) + 'ms/step' : '';
+
+      return `
+        <tr class="clickable" onclick="toggleDetail('${e.id}')">
+          <td><strong>${e.id}</strong></td>
+          <td>${e.hypothesis ? e.hypothesis.substring(0, 70) : '—'}${e.hypothesis && e.hypothesis.length > 70 ? '…' : ''}</td>
+          <td>${e.val_bpb ? e.val_bpb.toFixed(4) : '—'}</td>
+          <td class="delta ${deltaClass}">${deltaStr}</td>
+          <td>${sizeMB}</td>
+          <td>${steps}</td>
+          <td>${gpu}</td>
+          <td>${dur}</td>
+          <td><span class="status ${e.status}">${e.status}</span></td>
+        </tr>
+        <tr class="detail-row" id="detail-${e.id}">
+          <td colspan="9">
+            <div class="detail-content">
+              <div><div class="label">Hypothesis</div><div class="value">${e.hypothesis || '—'}</div></div>
+              <div><div class="label">Compressed Size</div><div class="value">${sizeMB} / 16 MB limit</div></div>
+              <div><div class="label">Steps</div><div class="value">${steps} ${msPerStep ? '(' + msPerStep + ')' : ''}</div></div>
+              <div><div class="label">GPU</div><div class="value">${e.gpu || '—'}</div></div>
+              <div><div class="label">Duration</div><div class="value">${dur}</div></div>
+              <div><div class="label">BPB (roundtrip)</div><div class="value">${e.val_bpb_roundtrip ? e.val_bpb_roundtrip.toFixed(4) : e.val_bpb ? e.val_bpb.toFixed(4) : '—'}</div></div>
+              <div class="reason-full"><div class="label">Analysis</div><div class="value">${e.reason || '—'}</div></div>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+
+    // Knowledge
+    if (knowledgeText) {
+      document.getElementById('knowledge-section').style.display = 'block';
+      document.getElementById('knowledge').textContent = knowledgeText;
+    }
+
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+  } catch (err) {
+    console.error('Load error:', err);
+  }
+}
+
+loadData();
+setInterval(() => {
+  if (document.getElementById('auto').checked) loadData();
+}, 30000);
+</script>
+</body>
+</html>

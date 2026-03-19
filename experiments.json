@@ -1,0 +1,38 @@
+[
+  {
+    "id": "exp_001",
+    "hypothesis": "Baseline run without changes (+ GQA fix for PyTorch 2.4 compat)",
+    "val_bpb": 3.1968,
+    "val_bpb_roundtrip": 3.1968,
+    "compressed_bytes": 5512450,
+    "steps_completed": 73,
+    "status": "keep",
+    "reason": "Baseline on A40. 73 steps in 2 min (~1656ms/step). 5.5MB compressed.",
+    "duration_sec": 120,
+    "gpu": "A40"
+  },
+  {
+    "id": "exp_002",
+    "hypothesis": "SwiGLU MLP instead of relu^2 (gate+up+down at hidden=2*dim)",
+    "val_bpb": 3.2638,
+    "val_bpb_roundtrip": 3.2638,
+    "compressed_bytes": 7822658,
+    "steps_completed": 65,
+    "status": "discard",
+    "reason": "Worse: +0.067 bpb. More params = slower steps = fewer iterations.",
+    "duration_sec": 120,
+    "gpu": "A40"
+  },
+  {
+    "id": "exp_003",
+    "hypothesis": "Reduce layers from 9 to 6 for faster steps and more iterations",
+    "val_bpb": 2.7606,
+    "val_bpb_roundtrip": 2.7606,
+    "compressed_bytes": 4192563,
+    "steps_completed": 109,
+    "status": "keep",
+    "reason": "Big improvement: -0.436 bpb! 50% more steps (109 vs 73), 33% faster (1103ms/step). Fewer params but much more training = better. 4.2MB compressed.",
+    "duration_sec": 120,
+    "gpu": "A40"
+  }
+]
