@@ -1,4 +1,4 @@
-# Parameter Golf — Autonomous Research Agent Results
+# Parameter G0lf — Autonomous Research Agent Results
 
 Live dashboard: **https://nglain.github.io/g0lf-results/**
 
