@@ -299,5 +299,29 @@
     "reason": "SLIDING WINDOW WORKS! Standard roundtrip: 1.3537, sliding (stride=2048): 1.3415 = -0.012 bpb FREE. Smaller stride (64) on 8xH100 should give -0.03-0.05 bpb.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_026",
+    "hypothesis": "NTK RoPE eval-time scaling (scale=4) — test if free improvement like slide eval",
+    "val_bpb": 2.2612,
+    "val_bpb_roundtrip": 2.3075,
+    "compressed_bytes": 11942235,
+    "steps_completed": 178,
+    "status": "discard",
+    "reason": "NTK WORSE: 2.322 vs 2.308. Model already trained at seq4096 with base=10000, changing base at eval breaks position encodings. Only useful for extending context beyond training length.",
+    "duration_sec": 120,
+    "gpu": "H100"
+  },
+  {
+    "id": "exp_027",
+    "hypothesis": "9L seq4096 warmdown_iters=400 — less LR decay, train at full LR longer",
+    "val_bpb": 1.3485,
+    "val_bpb_roundtrip": 1.3494,
+    "compressed_bytes": 13677485,
+    "steps_completed": 884,
+    "status": "keep",
+    "reason": "IMPROVEMENT: -0.004 bpb vs default warmdown. Shorter warmdown lets model train at full LR longer. Best result so far (roundtrip 1.3494). 13.7MB compressed.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]

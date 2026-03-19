@@ -616,11 +616,22 @@ class Rotary(nn.Module):
     # Caches cos/sin tables per sequence length on the current device.
     def __init__(self, dim: int, base: float = 10000.0):
         super().__init__()
+        self._base = base
+        self._dim = dim
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
         self._sin_cached: Tensor | None = None
+        self._ntk_scale: float = 1.0
+
+    def set_ntk_scale(self, scale: float) -> None:
+        """Scale the RoPE base for NTK-aware position interpolation at eval time."""
+        if scale != self._ntk_scale:
+            new_base = self._base * scale
+            self.inv_freq = 1.0 / (new_base ** (torch.arange(0, self._dim, 2, dtype=torch.float32) / self._dim))
+            self._ntk_scale = scale
+            self._seq_len_cached = 0  # Force recompute
 
     def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
         if (
@@ -1270,6 +1281,30 @@ def main() -> None:
             f"stride:{slide_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
         )
         log0(f"sliding_window_eval_exact val_loss:{slide_loss:.8f} val_bpb:{slide_bpb:.8f}")
+
+    # NTK RoPE eval-time scaling (test different base frequencies)
+    ntk_scale = float(os.environ.get("NTK_EVAL_SCALE", "0"))
+    if ntk_scale > 0:
+        base_m = model.module if hasattr(model, 'module') else model
+        if hasattr(base_m, '_orig_mod'):
+            base_m = base_m._orig_mod
+        for block in base_m.blocks:
+            block.attn.rotary.set_ntk_scale(ntk_scale)
+        torch.cuda.synchronize()
+        t_ntk = time.perf_counter()
+        ntk_loss, ntk_bpb = eval_val(
+            args, model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"ntk_rope_eval val_loss:{ntk_loss:.4f} val_bpb:{ntk_bpb:.4f} "
+            f"ntk_scale:{ntk_scale} eval_time:{1000.0 * (time.perf_counter() - t_ntk):.0f}ms"
+        )
+        log0(f"ntk_rope_eval_exact val_loss:{ntk_loss:.8f} val_bpb:{ntk_bpb:.8f}")
+        # Reset back
+        for block in base_m.blocks:
+            block.attn.rotary.set_ntk_scale(1.0)
 
     if distributed:
         dist.destroy_process_group()
