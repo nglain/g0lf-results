@@ -85,5 +85,5 @@ Communication through file-based bus: `advice.md` (strategy), `experiments.json`
 
 ## Links
 
-- Challenge: [OpenAI Parameter Golf](https://openai.com/index/parameter-golf/)
+- Challenge: [OpenAI Parameter G0lf](https://openai.com/index/parameter-golf/)
 - Dashboard: [nglain.github.io/g0lf-results](https://nglain.github.io/g0lf-results/)
