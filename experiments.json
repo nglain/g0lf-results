@@ -226,5 +226,17 @@
     "reason": "WORSE. Competition Muon tuning (lower LR, higher momentum, longer warmdown) needs 9500 steps. With only 890 steps on 1xH100, underfits. Stick with default Muon for 1xH100.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_020",
+    "hypothesis": "9L seq4096 10min + sliding window eval stride=512 (testing slide eval)",
+    "val_bpb": 1.3525,
+    "val_bpb_roundtrip": 1.3546,
+    "compressed_bytes": 11941025,
+    "steps_completed": 887,
+    "status": "keep",
+    "reason": "Same training as exp_018 (1.3525). Sliding window eval too slow on 1xH100 (killed after >10min). Code ready for 8xH100 final. Standard eval: 1.3546 roundtrip.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]

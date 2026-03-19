@@ -69,17 +69,12 @@ TRAIN_SEQ_LEN=4096, TRAIN_BATCH_TOKENS=393216
 Expected: ~1.25-1.28 BPB (vs current 1.358)
 Rationale: 4x more context per sequence. ALL top 10 submissions use this.
 
-### P1: Tuned Muon optimizer (SCALE TO YOUR SETUP!)
-**⚠️ WARNING: these params are for 8×H100 (~9500 steps). Scale for 1×H100 (~990 steps)!**
-
-For 8×H100 (final submit): MATRIX_LR=0.02, WARMDOWN_ITERS=3000, MUON_MOMENTUM_WARMUP_STEPS=1500
-For 1×H100 (~990 steps): MATRIX_LR=0.03, WARMDOWN_ITERS=300, MUON_MOMENTUM_WARMUP_STEPS=150
-
-Both setups: MUON_MOMENTUM=0.99, MUON_MOMENTUM_WARMUP_START=0.92
-SCALAR_LR = same as MATRIX_LR, TIED_EMBED_LR = 1.5× MATRIX_LR
-
-**exp_019 proved**: copy-pasting 8×H100 params to 1×H100 causes underfitting (1.41 vs 1.35).
-Scale warmdown/warmup proportionally to step count. Keep momentum=0.99.
+### P1: Tuned Muon optimizer (CRITICAL)
+MATRIX_LR=0.02, SCALAR_LR=0.02, TIED_EMBED_LR=0.03
+MUON_MOMENTUM=0.99, MUON_MOMENTUM_WARMUP_START=0.92, MUON_MOMENTUM_WARMUP_STEPS=1500
+WARMDOWN_ITERS=3000
+Expected: additional ~0.01-0.02 BPB improvement
+Rationale: PR #52 validated across 3 seeds. Lower LR + higher momentum + longer warmdown.
 
 ### P2: Sliding window eval (FREE BPB — eval-time only)
 Add eval_val_sliding() function with stride=64.

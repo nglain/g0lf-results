@@ -278,6 +278,84 @@ def eval_val(
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int = 64,
+) -> tuple[float, float]:
+    """Sliding window eval: score only rightmost `stride` tokens per window.
+    First window scores all seq_len tokens. Gives better BPB due to more context."""
+    seq_len = args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+
+    # Get base model for forward_logits
+    base = model.module if hasattr(model, 'module') else model
+    # Handle compiled model
+    if hasattr(base, '_orig_mod'):
+        base = base._orig_mod
+
+    model.eval()
+    nll_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    # Determine positions to process for this rank
+    all_starts = list(range(0, total_tokens - seq_len + 1, stride))
+    if not all_starts or all_starts[-1] + seq_len < total_tokens:
+        all_starts.append(max(total_tokens - seq_len, 0))
+
+    rank_starts = all_starts[rank::world_size]
+
+    with torch.inference_mode():
+        for i, start in enumerate(rank_starts):
+            end = start + seq_len
+            x = val_tokens[start:end].to(device=device, dtype=torch.int64).unsqueeze(0)
+            y = val_tokens[start + 1:end + 1].to(device=device, dtype=torch.int64).unsqueeze(0)
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = base.forward_logits(x)  # (1, seq_len, vocab)
+
+            log_probs = F.log_softmax(logits.float(), dim=-1)
+            # For first window, score all tokens; for subsequent, only last `stride`
+            if start == 0:
+                score_start = 0
+            else:
+                score_start = seq_len - stride
+
+            targets = y[0, score_start:]
+            lp = log_probs[0, score_start:]
+            token_nll = -lp.gather(1, targets.unsqueeze(1)).squeeze(1)
+            nll_sum += token_nll.to(torch.float64).sum()
+
+            n_scored = targets.numel()
+            token_count += n_scored
+
+            prev_ids = x[0, score_start:]
+            tgt_ids = targets
+            t_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            t_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+            byte_count += t_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(nll_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = nll_sum / token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
 # -----------------------------
 # POST-TRAINING QUANTIZATION
 # -----------------------------
@@ -737,6 +815,37 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        """Forward pass that returns logits (for sliding window eval)."""
+        bsz, seqlen = input_ids.shape
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+
+        num_blocks = len(self.blocks)
+        effective_blocks = []
+        for _ in range(self.num_loop_iters):
+            for i in range(num_blocks):
+                effective_blocks.append(self.blocks[i])
+
+        for i in range(self.num_encoder_layers):
+            x = effective_blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = effective_blocks[self.num_encoder_layers + i](x, x0)
+
+        x = self.final_norm(x)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(x)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
 
 # -----------------------------
 # TRAINING
@@ -1132,6 +1241,23 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # Sliding window eval (better BPB due to more context per token)
+    slide_stride = int(os.environ.get("SLIDE_STRIDE", "0"))
+    if slide_stride > 0:
+        torch.cuda.synchronize()
+        t_slide = time.perf_counter()
+        slide_loss, slide_bpb = eval_val_sliding(
+            args, model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            stride=slide_stride,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"sliding_window_eval val_loss:{slide_loss:.4f} val_bpb:{slide_bpb:.4f} "
+            f"stride:{slide_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
+        )
+        log0(f"sliding_window_eval_exact val_loss:{slide_loss:.8f} val_bpb:{slide_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()

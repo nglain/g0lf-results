@@ -1,0 +1,88 @@
+logs/exp_020.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17059912
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:393216 train_seq_len:4096 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9344 val_bpb:4.1069 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9366 train_time:638ms step_avg:637.81ms
+step:2/20000 train_loss:16.4707 train_time:1363ms step_avg:681.71ms
+step:3/20000 train_loss:9.3387 train_time:2099ms step_avg:699.57ms
+step:4/20000 train_loss:6.5570 train_time:2796ms step_avg:698.97ms
+step:5/20000 train_loss:6.4708 train_time:3509ms step_avg:701.83ms
+step:6/20000 train_loss:6.5159 train_time:4200ms step_avg:700.02ms
+step:7/20000 train_loss:6.5910 train_time:4894ms step_avg:699.21ms
+step:8/20000 train_loss:6.2360 train_time:5595ms step_avg:699.43ms
+step:9/20000 train_loss:6.0966 train_time:6289ms step_avg:698.78ms
+step:10/20000 train_loss:5.9830 train_time:6991ms step_avg:699.08ms
+step:200/20000 train_loss:2.8347 train_time:135143ms step_avg:675.72ms
+step:400/20000 train_loss:2.4915 train_time:270288ms step_avg:675.72ms
+step:600/20000 train_loss:2.3614 train_time:405675ms step_avg:676.13ms
+step:800/20000 train_loss:2.3481 train_time:541399ms step_avg:676.75ms
+step:887/20000 val_loss:2.2830 val_bpb:1.3521 train_time:600062ms step_avg:676.51ms
+stopping_early: wallclock_cap train_time:600062ms step:887/20000
+peak memory allocated: 9912 MiB reserved: 10054 MiB
+Serialized model: 67224578 bytes
+Code size: 53393 bytes
+Total submission size: 67277971 bytes
+Serialized model int8+zlib: 11899173 bytes (payload:17178912 raw_torch:17223564 payload_ratio:3.91x)
+Total submission size int8+zlib: 11952566 bytes
+/workspace/parameter-golf/train_gpt.py:1222: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+final_int8_zlib_roundtrip val_loss:2.2872 val_bpb:1.3546 eval_time:28107ms
+final_int8_zlib_roundtrip_exact val_loss:2.28720121 val_bpb:1.35460939
+W0319 11:03:10.203000 133660028080128 torch/distributed/elastic/agent/server/api.py:688] Received 15 death signal, shutting down workers
+W0319 11:03:10.254000 133660028080128 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 25505 closing signal SIGTERM
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 255, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/metrics/api.py", line 124, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/agent/server/api.py", line 680, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/agent/server/api.py", line 835, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/api.py", line 79, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 25439 got signal: 15
