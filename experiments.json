@@ -214,5 +214,17 @@
     "reason": "Marginal -0.006 bpb vs seq1024. On 1xH100 fewer total tokens (348M vs 519M) offset context benefit. Should help more on 8xH100. 11.9MB compressed.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_019",
+    "hypothesis": "9L seq4096 + tuned Muon (lr=0.02, mom=0.99, warmdown=3000) — competition params",
+    "val_bpb": 1.4137,
+    "val_bpb_roundtrip": 1.4476,
+    "compressed_bytes": 9115842,
+    "steps_completed": 890,
+    "status": "discard",
+    "reason": "WORSE. Competition Muon tuning (lower LR, higher momentum, longer warmdown) needs 9500 steps. With only 890 steps on 1xH100, underfits. Stick with default Muon for 1xH100.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]
