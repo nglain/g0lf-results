@@ -1,8 +1,8 @@
-logs/exp_004.txt
+logs/exp_007.txt
 val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
 train_loader:dataset:fineweb10B_sp1024 train_shards:80
 val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
-model_params:11548208
+model_params:4198928
 world_size:1 grad_accum_steps:8
 sdp_backends:cudnn=False flash=True mem_efficient=False math=False
 attention_mode:gqa num_heads:8 num_kv_heads:4
@@ -29,27 +29,28 @@ warmup_step:17/20
 warmup_step:18/20
 warmup_step:19/20
 warmup_step:20/20
-step:0/20000 val_loss:6.9358 val_bpb:4.1078 train_time:0ms step_avg:0.02ms
-step:1/20000 train_loss:6.9379 train_time:376ms step_avg:375.77ms
-step:2/20000 train_loss:17.1354 train_time:926ms step_avg:463.16ms
-step:3/20000 train_loss:14.7323 train_time:1385ms step_avg:461.81ms
-step:4/20000 train_loss:12.0056 train_time:1814ms step_avg:453.42ms
-step:5/20000 train_loss:9.4099 train_time:2215ms step_avg:442.94ms
-step:6/20000 train_loss:7.5446 train_time:2696ms step_avg:449.31ms
-step:7/20000 train_loss:6.4725 train_time:3113ms step_avg:444.71ms
-step:8/20000 train_loss:6.0527 train_time:3750ms step_avg:468.69ms
-step:9/20000 train_loss:5.8840 train_time:4237ms step_avg:470.78ms
-step:10/20000 train_loss:5.8224 train_time:4695ms step_avg:469.47ms
-step:200/20000 train_loss:2.9910 train_time:81830ms step_avg:409.15ms
-step:296/20000 val_loss:2.8761 val_bpb:1.7034 train_time:120286ms step_avg:406.37ms
-stopping_early: wallclock_cap train_time:120286ms step:296/20000
-peak memory allocated: 9315 MiB reserved: 10378 MiB
-Serialized model: 45166948 bytes
+step:0/20000 val_loss:6.9339 val_bpb:4.1066 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9393 train_time:175ms step_avg:175.48ms
+step:2/20000 train_loss:17.8751 train_time:475ms step_avg:237.67ms
+step:3/20000 train_loss:13.7230 train_time:766ms step_avg:255.50ms
+step:4/20000 train_loss:9.5197 train_time:1072ms step_avg:268.11ms
+step:5/20000 train_loss:7.2436 train_time:1282ms step_avg:256.40ms
+step:6/20000 train_loss:6.3166 train_time:1572ms step_avg:262.06ms
+step:7/20000 train_loss:5.8931 train_time:1784ms step_avg:254.84ms
+step:8/20000 train_loss:5.8771 train_time:2072ms step_avg:259.03ms
+step:9/20000 train_loss:5.8833 train_time:2373ms step_avg:263.62ms
+step:10/20000 train_loss:5.8796 train_time:2598ms step_avg:259.84ms
+step:200/20000 train_loss:2.9332 train_time:48574ms step_avg:242.87ms
+step:400/20000 train_loss:2.6082 train_time:97867ms step_avg:244.67ms
+step:492/20000 val_loss:2.7268 val_bpb:1.6149 train_time:120207ms step_avg:244.32ms
+stopping_early: wallclock_cap train_time:120207ms step:492/20000
+peak memory allocated: 3718 MiB reserved: 3794 MiB
+Serialized model: 15755260 bytes
 Code size: 47781 bytes
-Total submission size: 45214729 bytes
-Serialized model int8+zlib: 5788747 bytes (payload:11628736 raw_torch:11658605 payload_ratio:3.88x)
-Total submission size int8+zlib: 5836528 bytes
+Total submission size: 15803041 bytes
+Serialized model int8+zlib: 2560551 bytes (payload:4227136 raw_torch:4237613 payload_ratio:3.73x)
+Total submission size int8+zlib: 2608332 bytes
 /workspace/parameter-golf/train_gpt.py:1101: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-final_int8_zlib_roundtrip val_loss:2.9528 val_bpb:1.7488 eval_time:12504ms
-final_int8_zlib_roundtrip_exact val_loss:2.95275676 val_bpb:1.74878887
+final_int8_zlib_roundtrip val_loss:2.7584 val_bpb:1.6337 eval_time:4443ms
+final_int8_zlib_roundtrip_exact val_loss:2.75835704 val_bpb:1.63365441
