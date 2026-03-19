@@ -202,5 +202,17 @@
     "reason": "Same bpb as 9L (1.357 vs 1.358) but only 9.5MB vs 12.4MB. 6.5MB headroom! 1492 steps at 402ms/step. 6L is better: same quality, much smaller.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_018",
+    "hypothesis": "9L seq_len=4096 batch=393216 10min — competition says biggest improvement",
+    "val_bpb": 1.3525,
+    "val_bpb_roundtrip": 1.3549,
+    "compressed_bytes": 11941025,
+    "steps_completed": 887,
+    "status": "keep",
+    "reason": "Marginal -0.006 bpb vs seq1024. On 1xH100 fewer total tokens (348M vs 519M) offset context benefit. Should help more on 8xH100. 11.9MB compressed.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]
