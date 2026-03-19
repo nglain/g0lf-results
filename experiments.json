@@ -178,5 +178,17 @@
     "reason": "Same bpb as lr=0.04 (1.358 vs 1.360). Higher LR doesn't help with 10min training. Compressed 14.6MB — near limit.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_016",
+    "hypothesis": "12 layers, lr=0.04, 10 min — more capacity, check if fits 16MB",
+    "val_bpb": 1.3728,
+    "val_bpb_roundtrip": 1.3763,
+    "compressed_bytes": 15064838,
+    "steps_completed": 744,
+    "status": "discard",
+    "reason": "Worse than 9L (1.373 vs 1.358). Slower steps (807ms) → fewer steps (744 vs 990). 15.1MB near limit. 9 layers optimal for 1xH100/10min.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]
