@@ -107,16 +107,21 @@ Expected: ~0.10-0.15 BPB improvement (massive). But may be banned (issue #67 ope
 - MTP (multi-token prediction) — doesn't work at <1B params
 - Layer sweeps beyond 9-12 — already answered
 
-## Competition leaderboard (top 10, 8xH100/10min)
+## Competition leaderboard (top 12, 8xH100/10min, updated 2026-03-19 12:30)
 | PR | BPB | Approach |
 |----|-----|---------|
 | #64 | 1.0149 | val-only + slide-eval + int6 + 10L + Muon(0.99) + seq4096 |
 | #70 | 1.1659 | MLP 3x + int6 + slide-eval stride=256 |
 | #65 | 1.1808 | seq4096 + slide-eval + Muon tuning |
 | #66 | 1.1833 | seq4096 + Muon + fp16 embed + slide-eval |
+| #74 | 1.1884 | seq4096 + fp16 tok_emb + coarsened quant + tuned Muon schedule (NEW) |
 | #53 | 1.1888 | SP-4096 tokenizer + slide-eval |
 | #50 | 1.1925 | slide-eval only (baseline arch) |
 | #52 | 1.2014 | Muon tuning only (3 seeds validated) |
+| #71 | ~1.20 | 12L/dim416/KV4 + tied embeddings (NEW) |
 | #63 | 1.2067 | seq2048 + fp16 embed + tuned LR |
 | #60 | 1.2160 | NTK RoPE eval + overtone init |
 | #61 | 1.2154 | warmdown quant scheduling |
+| #73 | 1.3281 | SwiGLU + warmdown fix + quarter batch (1x5090, non-record) (NEW) |
+
+NOTE: 74 PRs total, 0 merged. Val-only (issue #67) still unresolved.
