@@ -1,41 +1,44 @@
 # Knowledge Base
 
 ## Текущая гипотеза
-exp_005: Try 4 layers on H100. On A40, fewer layers helped a lot. On H100 with ~406ms/step we get 296 steps — need to check if same trend holds or if capacity becomes bottleneck.
+exp_014: Run 9 layers (original baseline) on H100 with 10 min (600s) to see how much capacity matters with enough training time. Target: beat 1.2244 baseline.
 
 ## Лучший результат
-- **exp_004 (6 layers, H100): 1.7034 bpb** (296 steps, 406ms/step, 5.8MB compressed)
-- **exp_003 (6 layers, A40): 2.7606 bpb** (109 steps, 1103ms/step, 4.2MB compressed)
+- **exp_012 (3 layers, lr=0.12, H100/2min): 1.5489 bpb** (444 steps, 270ms/step, 4.0MB)
+- Target baseline: **1.2244 bpb** (8xH100, 10min)
 
-## Baseline архитектура (train_gpt.py, current)
-- **6 transformer layers**, model_dim=512, num_heads=8, num_kv_heads=4 (GQA)
-- vocab_size=1024, seq_len=1024, tied_embeddings=True
+## Current train_gpt.py defaults
+- 3 layers, model_dim=512, num_heads=8, num_kv_heads=4 (GQA)
+- matrix_lr=0.10, vocab_size=1024, seq_len=1024, tied_embeddings=True
 - MLP: relu^2, 2x expansion
-- ~406ms/step on H100, ~1103ms/step on A40
+- num_loop_iters=1 (looped layers available but off)
 
-## Что работает
-- **Меньше layers (6 vs 9)**: -0.436 bpb on A40 (73→109 steps)
-- GQA fix (repeat_interleave) для PyTorch 2.4 compat
+## Что работает (H100/2min)
+- **Higher matrix_lr**: 0.04→1.58, 0.08→1.55, 0.12→1.549 (diminishing returns, optimal ~0.10)
+- **3-4 layers**: sweet spot for 2-min H100 runs (3L: 1.58 at lr=0.04, 4L: 1.59)
+- **Fewer layers on A40**: -0.436 bpb (9→6 layers). A40-specific due to slow steps.
 
 ## Что не работает
-- **SwiGLU (exp_002, A40)**: +0.067 bpb. More params = slower steps = fewer iterations on A40. May be worth retesting on H100.
+- **SwiGLU (exp_002, A40 only)**: +0.067 bpb. Needs retesting on H100.
+- **Wider dim (768) with 4 layers**: +0.15 bpb. Too slow (423ms vs 305ms/step).
+- **Wider dim (640) with 3 layers**: +0.016 bpb. Marginal slowdown not worth it.
+- **2 layers**: -0.035 bpb vs 3 layers. Insufficient capacity.
+- **Looped layers (3×2)**: +0.12 bpb. Doubles compute without enough benefit.
+- **Smaller batch (262144)**: +0.03 bpb. Less informative steps.
 
 ## Тупики
 (пока пусто)
 
 ## Паттерны и инсайты
-- **H100 vs A40**: H100 gives ~4x more steps in same wall time (296 vs 73 for 6-layer config). Absolute bpb much better (1.70 vs 2.76).
-- **На A40/2мин**: скорость шагов >> размер модели
-- **На H100**: с 406ms/step и 296 steps, capacity may become bottleneck — larger models may help
-- Compressed size: 5.8MB для 6 layers — огромный запас до 16MB
+- **H100 2-min**: ~270-406ms/step depending on model size. 3 layers optimal for 2-min screening.
+- **LR trend**: matrix_lr 0.04→1.58, 0.08→1.55, 0.12→1.549. Optimal near 0.10.
+- **Layer trend (H100/2min)**: 6→1.70, 4→1.59, 3→1.58, 2→1.61. U-shape, optimal at 3.
+- **Key insight**: 2-min results (best ~1.55) are far from target (1.22). Need 10-min runs and larger models to close the gap.
+- **Size budget**: 3.5-5.8MB compressed << 16MB limit. Huge room for more params.
 
-## Тренды
-- A40 layers: 9→3.20, 6→2.76 (improving with fewer layers)
-- H100 layers: 6→1.70 (need more data points: 4, 9)
-
-## Комбинации на проверку
-- 4 layers on H100 (faster steps?)
-- 9 layers on H100 (more capacity, still enough steps?)
-- 6 layers + larger dim (768) on H100
-- 6 layers + SwiGLU on H100 (retry with more steps to amortize)
-- Looped layers (4 unique × 2 repeats = 8 effective)
+## Next priorities
+1. Run baseline (6-9 layers) with 10 min — see real convergence
+2. Try SwiGLU on H100 with enough training time
+3. Try looped layers with 10 min (compute cost may pay off)
+4. Explore 12+ layers with 10 min
+5. LR schedule: cosine decay, different warmup
