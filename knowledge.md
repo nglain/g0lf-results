@@ -67,9 +67,23 @@ This means LR decays from step 0! Setting WARMDOWN_ITERS=100 gave +0.0013 BPB.
 3. Doc-isolated eval (free -0.011)
 
 ### For 8xH100 (final submission):
-4. int6 STE (fake-quantize during training)
-5. MLP 3x expansion (with int6 to fit under 16MB)
-6. MTP auxiliary head (training-only gradient enrichment)
-7. SWA over checkpoints during warmdown
-8. NTK RoPE eval-time scaling
+4. **int6 STE QAT** — fake-quantize in CastedLinear.forward():
+   ```python
+   # In CastedLinear.forward():
+   w = self.weight.to(x.dtype)
+   scale = w.abs().amax(dim=1, keepdim=True) / 31.0
+   w_q = (w / scale).round().clamp(-31, 31) * scale
+   w = w + (w_q - w).detach()  # STE: gradients flow through, forward sees quantized
+   ```
+   Reduces quant penalty from ~0.05 to ~0.001 BPB.
+5. **MLP 3x** expansion (MLP_HIDDEN=1536, with int6 to fit under 16MB)
+6. **ROPE_BASE=200000** (PR #120, ~0.002 BPB gain vs default 10000)
+7. MTP auxiliary head (training-only gradient enrichment)
+8. SWA over checkpoints during warmdown
 9. zstd-22 compression instead of zlib
+10. Sliding window stride=64 (eval, ~0.012 over stride=512)
+
+### Competition frontier (2026-03-19 22:30)
+- **Without val-only**: ~1.157 BPB (PR #114)
+- **With val-only**: 0.959 BPB (PR #120, by Devin AI)
+- 120 PRs total, 0 merged. Winning meta: int6 STE + MLP 3x + seq4096 + sliding window + fp16 embed
