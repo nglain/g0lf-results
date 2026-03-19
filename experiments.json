@@ -166,5 +166,17 @@
     "reason": "Big win: 1.36 bpb. 9 layers with 10 min much better than 3 layers with 2 min. 12.4MB compressed (under 16MB). Still 0.14 above 1.22 target.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_015",
+    "hypothesis": "9 layers, lr=0.10, 10 min — higher LR with long training",
+    "val_bpb": 1.3600,
+    "val_bpb_roundtrip": 1.3606,
+    "compressed_bytes": 14644304,
+    "steps_completed": 994,
+    "status": "discard",
+    "reason": "Same bpb as lr=0.04 (1.358 vs 1.360). Higher LR doesn't help with 10min training. Compressed 14.6MB — near limit.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]
