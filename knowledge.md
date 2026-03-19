@@ -1,68 +1,46 @@
 # Knowledge Base
 
 ## Текущая гипотеза
-exp_021: Try seq_len=2048 on 9L — balance between context and total tokens on 1xH100.
+Sliding window eval CONFIRMED working (-0.012 bpb at stride=2048). Next: try NTK RoPE eval-time scaling.
 
 ## Лучший результат
-- **exp_018/020 (9L, seq4096, H100/10min): 1.3525 bpb** (887 steps, 676ms/step, 11.9MB)
-- **exp_017 (6L, seq1024, H100/10min): 1.3573 bpb** (1492 steps, 402ms/step, 9.5MB)
-- Target baseline: **1.2244 bpb** (8xH100, 10min) — gap: 0.128
+- **exp_025 (9L, seq4096, H100/10min): 1.3415 bpb with sliding eval** (stride=2048)
+  - Standard roundtrip: 1.3537, sliding: 1.3415 = -0.012 bpb FREE
+- Target baseline: **1.2244 bpb** (8xH100, 10min) — gap: 0.117 (with slide eval)
+- NO val-only training (forbidden)
 
 ## Current train_gpt.py state
 - Defaults: 3 layers, dim=512, lr=0.10 (for quick screening)
-- Best 10min config: 9L/seq4096/lr=0.04 → 1.3525
-- Has: looped layers (off), sliding window eval (via SLIDE_STRIDE env), forward_logits method
-- NO val-only training (forbidden by human)
+- Best 10min config: 9L/seq4096/lr=0.04 → 1.3525 (standard eval), 1.3415 (sliding)
+- Features: looped layers (off), sliding window eval (SLIDE_STRIDE), forward_logits, int6 quant (INT6_LAYERS)
 
 ## Что работает (H100/10min)
-- **9L, 10min**: 1.358 bpb (seq1024). Best layer count for 1xH100.
-- **6L, 10min**: 1.357 bpb (seq1024). Nearly identical but only 9.5MB (vs 12.4MB). More size room.
-- **seq4096**: 1.353 bpb. Marginal -0.006 on 1xH100. Should help more on 8xH100.
-- Sliding window eval: implemented, awaiting 8xH100 for proper testing.
+- **Sliding window eval**: -0.012 bpb FREE at stride=2048. With stride=64 on 8xH100, expect -0.03-0.05. CONFIRMED.
+- **9L seq4096**: 1.3525 (standard). Best architecture for 1xH100.
+- **6L seq1024**: 1.3573. Same quality but only 9.5MB. Good if size constrained.
+- All seq_len variants (1024, 2048, 4096) give ~1.352-1.358 on 1xH100. Minimal effect.
 
-## Что не работает
-- **Competition Muon tuning on 1xH100**: lr=0.02/mom=0.99/warmdown=3000 → 1.414 bpb (WORSE). Needs 9500 steps, we have ~890.
-- **12L at 10min**: 1.373 (worse than 9L). Too slow.
-- **SwiGLU (A40)**: failed, but top PRs don't use it either. Skip.
-- **Wider dim**: failed on 2-min AND competition uses 512. Skip.
-- **Looped layers**: failed, PR #31 confirmed worse. Skip.
-- **Smaller batch (262144)**: worse.
+## Что не работает (H100/10min, 1xH100)
+- **Competition Muon tuning**: lr=0.02/mom=0.99 → 1.414 (WORSE). Needs 9500 steps.
+- **Moderate Muon tuning**: mom=0.97/warmdown=2000 → 1.353 (no change).
+- **MLP 3x**: 1.356 (worse). More params = slower = fewer steps. 14.8MB near limit.
+- **10L + int6**: 1.364 pre-quant, 1.385 post-quant. Int6 causes +0.02 roundtrip degradation.
+- **12L**: 1.373 (worse). Too slow.
+- **Wider dim (640, 768)**: worse at any training duration.
+- **Looped layers**: worse. PR #31 confirmed.
 
 ## Compression awareness
-- 6L/seq1024: 9.5MB (6.5MB headroom)
-- 9L/seq1024: 12.4MB (3.6MB headroom)
 - 9L/seq4096: 11.9MB (4.1MB headroom)
-- Budget: 16MB total
+- 6L/seq1024: 9.5MB (6.5MB headroom)
 
-## 1xH100 vs 8xH100 reality
-- 1xH100: ~890 steps at 9L/seq4096. Competition uses ~9500 steps on 8xH100. 10x gap.
-- Competition Muon tuning, sliding window eval, and larger architectures are all tuned for 8xH100.
-- Our role: find the best ARCHITECTURE and CODE. Training quality will improve with 8xH100 final.
-- Focus on techniques that help at ANY step count, not just high-step regimes.
+## Key insight
+On 1xH100 with ~890 steps, we're compute-bound. ALL architecture changes trade steps for capacity and net to ~1.35. The only free improvements are eval-time techniques:
+- Sliding window eval: ✅ CONFIRMED
+- NTK RoPE eval: TODO
+- Any other eval-time compute trick
 
-## Competition intel (honest techniques only)
-- seq4096: universal (✓ implemented)
-- Sliding window eval: -0.03-0.05 bpb FREE (✓ implemented, need 8xH100 to test)
-- MLP 3x expansion: PR #70 uses (try this)
-- fp16 tok_emb: saves space (try this)
-- int6 middle layers: saves ~1.6MB → fits 10th layer (try this)
-- NTK RoPE eval: PR #60 (try this)
-- warmdown quant scheduling: PR #61 (try this)
-
-## NEW competition intel (2026-03-19 15:00)
-- **PR #78: vocab 8192 + NorMuon + selective quant = 1.186 BPB** (new strong result!)
-  - Larger vocab reduces tokens/byte → better BPB multiplier
-  - NorMuon = normalized Muon variant (from modded-nanogpt)
-  - Need SP-8192 tokenizer: `python3 data/cached_challenge_fineweb.py --variant sp8192`
-- **PR #77: LoRA TTT = 1.195 BPB** — but ablations show TTT only -0.003
-  - Real gain: doc-isolated eval (-0.011) + sliding window (-0.034)
-- **Credible frontier: ~1.16-1.19 BPB** (sliding window + int6 + MLP 3x or larger vocab)
-
-## Priority queue
-1. seq_len=2048 (balance context vs total tokens on 1xH100)
-2. MLP 3x expansion (PR #70 approach)
-3. fp16 tok_emb (smaller compressed size → room for more layers)
-4. NTK RoPE at eval (free improvement like slide eval)
-5. int6 middle layers + 10th layer
-6. **Consider**: vocab 8192 (PR #78 approach — 1.186 BPB)
-7. **Consider**: doc-isolated eval (reset state between docs, free -0.011)
+## Priority queue (updated)
+1. ✅ Sliding window eval — DONE, confirmed -0.012 bpb (stride=2048), more with stride=64
+2. NTK RoPE eval-time scaling (PR #60, free improvement)
+3. Try warmdown_iters tuning (shorter warmdown since we stop early)
+4. Optimize for 8xH100 final: set defaults to competition-proven params

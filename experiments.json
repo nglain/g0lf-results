@@ -286,5 +286,18 @@
     "reason": "Worse: 1.364 pre-quant, 1.385 post-quant. Int6 causes +0.02 roundtrip degradation. 10L slower (753ms) = fewer steps. Not worth it.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_025",
+    "hypothesis": "9L seq4096 10min + sliding window eval stride=2048 — test slide eval improvement",
+    "val_bpb": 1.3512,
+    "val_bpb_roundtrip": 1.3537,
+    "val_bpb_sliding": 1.3415,
+    "compressed_bytes": 11942235,
+    "steps_completed": 887,
+    "status": "keep",
+    "reason": "SLIDING WINDOW WORKS! Standard roundtrip: 1.3537, sliding (stride=2048): 1.3415 = -0.012 bpb FREE. Smaller stride (64) on 8xH100 should give -0.03-0.05 bpb.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]

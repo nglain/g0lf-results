@@ -1,0 +1,60 @@
+logs/exp_025.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17059912
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:393216 train_seq_len:4096 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9344 val_bpb:4.1069 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9366 train_time:630ms step_avg:630.23ms
+step:2/20000 train_loss:16.4707 train_time:1373ms step_avg:686.73ms
+step:3/20000 train_loss:9.3877 train_time:2144ms step_avg:714.77ms
+step:4/20000 train_loss:6.5703 train_time:2865ms step_avg:716.36ms
+step:5/20000 train_loss:6.4420 train_time:3590ms step_avg:718.04ms
+step:6/20000 train_loss:6.4804 train_time:4278ms step_avg:713.03ms
+step:7/20000 train_loss:6.5639 train_time:5290ms step_avg:755.72ms
+step:8/20000 train_loss:6.2162 train_time:5979ms step_avg:747.34ms
+step:9/20000 train_loss:6.0740 train_time:6676ms step_avg:741.80ms
+step:10/20000 train_loss:5.9654 train_time:7387ms step_avg:738.66ms
+step:200/20000 train_loss:2.8364 train_time:135689ms step_avg:678.45ms
+step:400/20000 train_loss:2.4870 train_time:270872ms step_avg:677.18ms
+step:600/20000 train_loss:2.3583 train_time:406319ms step_avg:677.20ms
+step:800/20000 train_loss:2.3469 train_time:541556ms step_avg:676.95ms
+step:887/20000 val_loss:2.2814 val_bpb:1.3512 train_time:600361ms step_avg:676.84ms
+stopping_early: wallclock_cap train_time:600361ms step:887/20000
+peak memory allocated: 9912 MiB reserved: 10054 MiB
+Serialized model: 67224578 bytes
+Code size: 53997 bytes
+Total submission size: 67278575 bytes
+Serialized model int8+zlib: 11888238 bytes (payload:17178912 raw_torch:17223564 payload_ratio:3.91x)
+Total submission size int8+zlib: 11942235 bytes
+/workspace/parameter-golf/train_gpt.py:1234: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+final_int8_zlib_roundtrip val_loss:2.2857 val_bpb:1.3537 eval_time:28155ms
+final_int8_zlib_roundtrip_exact val_loss:2.28570400 val_bpb:1.35372266
+sliding_window_eval val_loss:2.2651 val_bpb:1.3415 stride:2048 eval_time:367624ms
+sliding_window_eval_exact val_loss:2.26507747 val_bpb:1.34150647
