@@ -84,56 +84,7 @@ This means LR decays from step 0! Setting WARMDOWN_ITERS=100 gave +0.0013 BPB.
 9. zstd-22 compression instead of zlib
 10. Sliding window stride=64 (eval, ~0.012 over stride=512)
 
-### Competition frontier (2026-03-20 01:30) — UPDATED
-- **Official SOTA (merged)**: 1.1574 BPB
-- **Best open PR**: PR #135 = **1.1539 BPB** (OrthoInit + BigramHash + SmearGate + int6 + MLP3x)
-- **Our best**: exp_030 = **1.2036** (gap: 0.05 to SOTA)
-- 136 PRs total, 7 records merged.
-
-### NEXT PRIORITY: Close 0.05 gap with these lightweight additions
-
-#### OrthoInit (zero cost, just better init):
-```python
-# In _init_weights():
-if module.weight.ndim == 2 and min(module.weight.shape) >= 64:
-    nn.init.orthogonal_(module.weight, gain=1.0)
-    if ".proj" in name:
-        module.weight.mul_(1.0 / math.sqrt(2 * num_layers))
-```
-
-#### BigramHash (~512K params, starts as no-op):
-```python
-class BigramHashEmbedding(nn.Module):
-    def __init__(self, bigram_vocab=4096, bigram_dim=128, model_dim=512):
-        self.embed = nn.Embedding(bigram_vocab, bigram_dim)  # init zeros
-        self.proj = CastedLinear(bigram_dim, model_dim, bias=False)  # init zeros
-        self.scale = nn.Parameter(torch.tensor(0.05))
-    def bigram_hash(self, tokens):
-        t = tokens.to(torch.int32)
-        mod = self.bigram_vocab - 1
-        out = torch.empty_like(t, dtype=torch.long)
-        out[..., 0] = mod
-        out[..., 1:] = torch.bitwise_xor(36313 * t[..., 1:], 27191 * t[..., :-1]) % mod
-        return out
-    def forward(self, ids):
-        return self.proj(self.embed(self.bigram_hash(ids))) * self.scale
-```
-Usage: `x = tok_emb(ids) + bigram(ids)` before RMS norm.
-
-#### SmearGate (512 params!):
-```python
-class SmearGate(nn.Module):
-    def __init__(self, dim):
-        self.gate = nn.Parameter(torch.zeros(dim))
-    def forward(self, x):
-        g = torch.sigmoid(self.gate)[None, None, :]
-        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
-        return (1 - g) * x + g * x_prev
-```
-Applied after embed+bigram+norm, before blocks.
-
-#### Also try: MLP 3x + int6 + zstd-22 + sliding window stride=64
-- MLP_MULT=3 (hidden=1536)
-- int6 for middle layers: saves space for wider MLP
-- grad_clip_norm=0.3
-- batch=786432 (larger than current 524288)
+### Competition frontier (2026-03-19 22:30)
+- **Without val-only**: ~1.157 BPB (PR #114)
+- **With val-only**: 0.959 BPB (PR #120, by Devin AI)
+- 120 PRs total, 0 merged. Winning meta: int6 STE + MLP 3x + seq4096 + sliding window + fp16 embed
