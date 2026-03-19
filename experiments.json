@@ -238,5 +238,17 @@
     "reason": "Same training as exp_018 (1.3525). Sliding window eval too slow on 1xH100 (killed after >10min). Code ready for 8xH100 final. Standard eval: 1.3546 roundtrip.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_021",
+    "hypothesis": "9L seq2048 10min — balance context vs total tokens on 1xH100",
+    "val_bpb": 1.3524,
+    "val_bpb_roundtrip": 1.3554,
+    "compressed_bytes": 11867287,
+    "steps_completed": 856,
+    "status": "keep",
+    "reason": "Same as seq4096 (1.3524 vs 1.3525). seq_len effect is minimal at 1xH100 step budget. 856 steps at 702ms/step.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]
