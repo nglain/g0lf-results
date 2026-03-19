@@ -262,5 +262,17 @@
     "reason": "Worse than MLP 2x (1.356 vs 1.353). More params (21.8M) = slower steps = fewer iterations. 14.8MB near limit.",
     "duration_sec": 600,
     "gpu": "H100"
+  },
+  {
+    "id": "exp_023",
+    "hypothesis": "9L seq4096 + moderate Muon (mom=0.97, warmdown=2000) — gentler tuning for fewer steps",
+    "val_bpb": 1.3533,
+    "val_bpb_roundtrip": 1.3582,
+    "compressed_bytes": 11199356,
+    "steps_completed": 885,
+    "status": "discard",
+    "reason": "Essentially same as default Muon (1.353 vs 1.353). Muon tuning not impactful at ~890 step budget.",
+    "duration_sec": 600,
+    "gpu": "H100"
   }
 ]
