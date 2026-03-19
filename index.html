@@ -17,7 +17,6 @@
   .refresh:hover { color: #4ade80; border-color: #4ade80; }
   #last-update { color: #444; font-size: 11px; margin-top: 4px; }
 
-  /* Stats */
   .stats { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
   .stat { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 14px 18px; min-width: 130px; flex: 1; }
   .stat-label { color: #888; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
@@ -27,13 +26,13 @@
   .blue { color: #60a5fa; }
   .yellow { color: #fbbf24; }
   .red { color: #f87171; }
+  .target-color { color: #c084fc; }
 
-  /* Chart */
   .chart { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
   .chart h2 { font-size: 13px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
-  .chart-area { height: 180px; position: relative; }
-  .bar-container { display: flex; align-items: flex-end; gap: 3px; height: 100%; }
-  .bar { min-width: 24px; flex: 1; border-radius: 3px 3px 0 0; position: relative; cursor: pointer; transition: all 0.2s; }
+  .chart-area { height: 200px; position: relative; }
+  .bar-container { display: flex; align-items: flex-end; gap: 3px; height: 100%; position: relative; }
+  .bar { min-width: 24px; flex: 1; border-radius: 3px 3px 0 0; position: relative; cursor: pointer; transition: all 0.2s; z-index: 1; }
   .bar:hover { filter: brightness(1.3); }
   .bar.keep { background: linear-gradient(to top, #065f46, #4ade80); }
   .bar.discard { background: linear-gradient(to top, #7f1d1d, #f87171); }
@@ -41,15 +40,15 @@
   .bar-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #555; }
   .bar .tooltip { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #222; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 11px; white-space: nowrap; z-index: 10; margin-bottom: 6px; line-height: 1.5; }
   .bar:hover .tooltip { display: block; }
+  .target-line { position: absolute; left: 0; right: 0; border-top: 2px dashed #c084fc; z-index: 2; pointer-events: none; }
+  .target-label { position: absolute; right: 4px; top: -16px; font-size: 10px; color: #c084fc; pointer-events: none; }
 
-  /* Table */
   .table-wrap { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 4px; margin-bottom: 24px; overflow-x: auto; }
   .table-wrap h2 { font-size: 13px; color: #888; padding: 14px 14px 8px; text-transform: uppercase; letter-spacing: 1px; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 6px 10px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; position: sticky; top: 0; background: #1a1a1a; }
   td { padding: 8px 10px; border-bottom: 1px solid #222; font-size: 12px; vertical-align: top; }
   tr:hover td { background: #222; }
-  tr.expanded td { background: #1f1f1f; }
   .clickable { cursor: pointer; }
   .status { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap; }
   .status.keep { background: #064e3b; color: #4ade80; }
@@ -67,7 +66,6 @@
   .detail-content .value { margin-top: 2px; }
   .reason-full { grid-column: 1 / -1; line-height: 1.5; color: #aaa; }
 
-  /* Knowledge */
   .knowledge { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; margin-bottom: 24px; }
   .knowledge h2 { font-size: 13px; color: #888; padding: 14px 18px 0; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; }
   .knowledge h2:hover { color: #4ade80; }
@@ -94,7 +92,7 @@
 <div class="stats" id="stats"></div>
 
 <div class="chart">
-  <h2>BPB Progress</h2>
+  <h2>BPB Progress <span style="color:#c084fc;font-size:11px;font-weight:normal">(dashed line = official baseline 1.2244)</span></h2>
   <div class="chart-area">
     <div class="bar-container" id="chart"></div>
   </div>
@@ -128,6 +126,7 @@
 <script>
 const REPO = 'nglain/g0lf-results';
 const BRANCH = 'main';
+const OFFICIAL_BASELINE = 1.2244; // OpenAI baseline on 8xH100/10min
 
 async function fetchFile(path) {
   const url = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${path}?t=${Date.now()}`;
@@ -140,6 +139,11 @@ function toggleDetail(id) {
   const row = document.getElementById('detail-' + id);
   if (row) row.classList.toggle('show');
 }
+
+// Normalize field names (agent uses both "steps" and "steps_completed")
+function getSteps(e) { return e.steps_completed || e.steps || null; }
+function getCompressed(e) { return e.compressed_bytes || null; }
+function getDuration(e) { return e.duration_sec || null; }
 
 async function loadData() {
   try {
@@ -163,7 +167,8 @@ async function loadData() {
     const baseline = baselineExp ? baselineExp.val_bpb.toFixed(4) : '—';
     const improvement = bestExp && baselineExp ? (baselineExp.val_bpb - bestExp.val_bpb) : 0;
     const gpus = [...new Set(experiments.map(e => e.gpu).filter(Boolean))];
-    const totalTime = experiments.reduce((s, e) => s + (e.duration_sec || 0), 0);
+    const totalTime = experiments.reduce((s, e) => s + (getDuration(e) || 0), 0);
+    const distToTarget = bestExp ? (bestExp.val_bpb - OFFICIAL_BASELINE) : null;
 
     document.getElementById('stats').innerHTML = `
       <div class="stat">
@@ -172,64 +177,78 @@ async function loadData() {
         <div class="stat-sub">${bestExp ? bestExp.id : ''}</div>
       </div>
       <div class="stat">
-        <div class="stat-label">Baseline</div>
-        <div class="stat-value">${baseline}</div>
-        <div class="stat-sub">${baselineExp?.gpu || ''}</div>
+        <div class="stat-label">Official Target</div>
+        <div class="stat-value target-color">${OFFICIAL_BASELINE}</div>
+        <div class="stat-sub">8xH100 / 10min baseline</div>
       </div>
       <div class="stat">
-        <div class="stat-label">Improvement</div>
-        <div class="stat-value ${improvement > 0 ? 'green' : ''}">${improvement > 0 ? '-' + improvement.toFixed(4) : '—'}</div>
-        <div class="stat-sub">${improvement > 0 ? ((improvement / baselineExp.val_bpb) * 100).toFixed(1) + '%' : ''}</div>
+        <div class="stat-label">Gap to Target</div>
+        <div class="stat-value ${distToTarget !== null && distToTarget <= 0 ? 'green' : 'yellow'}">${distToTarget !== null ? (distToTarget > 0 ? '+' : '') + distToTarget.toFixed(4) : '—'}</div>
+        <div class="stat-sub">${distToTarget !== null && distToTarget <= 0 ? 'TARGET BEATEN!' : 'lower = closer'}</div>
       </div>
       <div class="stat">
         <div class="stat-label">Experiments</div>
         <div class="stat-value blue">${total}</div>
-        <div class="stat-sub green">${keeps} keep</div>
+        <div class="stat-sub green">${keeps} keep / ${discards} disc${crashes ? ' / ' + crashes + ' crash' : ''}</div>
       </div>
       <div class="stat">
-        <div class="stat-label">Success Rate</div>
-        <div class="stat-value yellow">${total > 0 ? Math.round(keeps / total * 100) : 0}%</div>
-        <div class="stat-sub">${discards} discard${crashes ? ', ' + crashes + ' crash' : ''}</div>
+        <div class="stat-label">Our Improvement</div>
+        <div class="stat-value ${improvement > 0 ? 'green' : ''}">${improvement > 0 ? '-' + improvement.toFixed(4) : '—'}</div>
+        <div class="stat-sub">${improvement > 0 ? ((improvement / baselineExp.val_bpb) * 100).toFixed(1) + '% from our baseline' : ''}</div>
       </div>
       <div class="stat">
         <div class="stat-label">GPU Time</div>
         <div class="stat-value">${Math.round(totalTime / 60)}m</div>
-        <div class="stat-sub">${gpus.join(', ')}</div>
+        <div class="stat-sub">${gpus.join(', ') || 'unknown'}</div>
       </div>
     `;
 
-    // Chart
+    // Chart with target line
     const validExps = experiments.filter(e => e.val_bpb > 0);
     if (validExps.length > 0) {
-      const maxBpb = Math.max(...validExps.map(e => e.val_bpb));
-      const minBpb = Math.min(...validExps.map(e => e.val_bpb));
+      const allBpb = [...validExps.map(e => e.val_bpb), OFFICIAL_BASELINE];
+      const maxBpb = Math.max(...allBpb);
+      const minBpb = Math.min(...allBpb);
       const range = (maxBpb - minBpb) || 0.1;
+      const chartHeight = 160;
 
-      document.getElementById('chart').innerHTML = validExps.map(e => {
-        const height = 20 + ((maxBpb - e.val_bpb) / range) * 140;
+      // Target line position
+      const targetPct = (maxBpb - OFFICIAL_BASELINE) / range;
+      const targetPx = 20 + targetPct * chartHeight;
+
+      let chartHtml = `<div class="target-line" style="bottom:${targetPx}px"><span class="target-label">Target: ${OFFICIAL_BASELINE}</span></div>`;
+
+      chartHtml += validExps.map(e => {
+        const height = 20 + ((maxBpb - e.val_bpb) / range) * chartHeight;
+        const steps = getSteps(e);
         return `<div class="bar ${e.status}" style="height:${height}px" onclick="toggleDetail('${e.id}')">
           <div class="bar-label">${e.id.replace('exp_', '')}</div>
           <div class="tooltip">
             <strong>${e.id}</strong><br>
             BPB: ${e.val_bpb.toFixed(4)}<br>
-            ${e.hypothesis.substring(0, 60)}<br>
-            ${e.gpu || ''} · ${e.steps_completed || '?'} steps · ${e.duration_sec || '?'}s
+            ${e.hypothesis ? e.hypothesis.substring(0, 60) : ''}<br>
+            ${e.gpu || ''} · ${steps || '?'} steps
           </div>
         </div>`;
       }).join('');
+
+      document.getElementById('chart').innerHTML = chartHtml;
     }
 
     // Table
     const baselineBpb = baselineExp ? baselineExp.val_bpb : 0;
-    document.getElementById('experiments').innerHTML = experiments.map((e, i) => {
+    document.getElementById('experiments').innerHTML = experiments.slice().reverse().map((e, ri) => {
+      const i = experiments.length - 1 - ri;
       const delta = i === 0 ? 0 : (e.val_bpb || 0) - baselineBpb;
       const deltaClass = delta < -0.001 ? 'negative' : delta > 0.001 ? 'positive' : 'zero';
       const deltaStr = i === 0 ? '—' : (delta > 0 ? '+' : '') + delta.toFixed(4);
-      const sizeMB = e.compressed_bytes ? (e.compressed_bytes / 1e6).toFixed(1) + ' MB' : '—';
-      const steps = e.steps_completed || '—';
+      const compressed = getCompressed(e);
+      const sizeMB = compressed ? (compressed / 1e6).toFixed(1) + ' MB' : '—';
+      const steps = getSteps(e);
       const gpu = e.gpu ? `<span class="gpu-tag">${e.gpu}</span>` : '—';
-      const dur = e.duration_sec ? e.duration_sec + 's' : '—';
-      const msPerStep = e.steps_completed && e.duration_sec ? Math.round(e.duration_sec * 1000 / e.steps_completed) + 'ms/step' : '';
+      const dur = getDuration(e);
+      const durStr = dur ? dur + 's' : '—';
+      const msPerStep = steps && dur ? Math.round(dur * 1000 / steps) + 'ms/step' : '';
 
       return `
         <tr class="clickable" onclick="toggleDetail('${e.id}')">
@@ -238,19 +257,19 @@ async function loadData() {
           <td>${e.val_bpb ? e.val_bpb.toFixed(4) : '—'}</td>
           <td class="delta ${deltaClass}">${deltaStr}</td>
           <td>${sizeMB}</td>
-          <td>${steps}</td>
+          <td>${steps || '—'}</td>
           <td>${gpu}</td>
-          <td>${dur}</td>
+          <td>${durStr}</td>
           <td><span class="status ${e.status}">${e.status}</span></td>
         </tr>
         <tr class="detail-row" id="detail-${e.id}">
           <td colspan="9">
             <div class="detail-content">
               <div><div class="label">Hypothesis</div><div class="value">${e.hypothesis || '—'}</div></div>
-              <div><div class="label">Compressed Size</div><div class="value">${sizeMB} / 16 MB limit</div></div>
-              <div><div class="label">Steps</div><div class="value">${steps} ${msPerStep ? '(' + msPerStep + ')' : ''}</div></div>
+              <div><div class="label">Compressed Size</div><div class="value">${sizeMB}${compressed ? ' / 16 MB limit' : ''}</div></div>
+              <div><div class="label">Steps</div><div class="value">${steps || '—'} ${msPerStep ? '(' + msPerStep + ')' : ''}</div></div>
               <div><div class="label">GPU</div><div class="value">${e.gpu || '—'}</div></div>
-              <div><div class="label">Duration</div><div class="value">${dur}</div></div>
+              <div><div class="label">Duration</div><div class="value">${durStr}</div></div>
               <div><div class="label">BPB (roundtrip)</div><div class="value">${e.val_bpb_roundtrip ? e.val_bpb_roundtrip.toFixed(4) : e.val_bpb ? e.val_bpb.toFixed(4) : '—'}</div></div>
               <div class="reason-full"><div class="label">Analysis</div><div class="value">${e.reason || '—'}</div></div>
             </div>
