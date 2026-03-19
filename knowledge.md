@@ -1,7 +1,7 @@
 # Knowledge Base
 
 ## Текущая гипотеза
-exp_016: 12 layers, 10min, lr=0.04 — more capacity. Layer sweep at 10-min to find optimal depth.
+SWITCH: adopt competition-proven techniques instead of incremental layer sweeps. See "Competition Intel" below.
 
 ## Лучший результат
 - **exp_014 (9 layers, lr=0.04, H100/10min): 1.3583 bpb** (990 steps, 606ms/step, 12.4MB compressed)
@@ -37,7 +37,8 @@ exp_016: 12 layers, 10min, lr=0.04 — more capacity. Layer sweep at 10-min to f
 - Headroom allows ~2 more layers or modest width increase at lr=0.04
 
 ## Тупики
-(пока пусто)
+- **12L at 10min**: worse than 9L (1.373 vs 1.358). Slower steps → fewer steps. 9L is optimal for 1xH100/10min.
+- **Layer sweeps at 10min**: diminishing returns. 9L confirmed optimal. STOP sweeping, switch to proven techniques.
 
 ## Паттерны и инсайты
 - **Regime shift**: 2-min and 10-min are DIFFERENT optimization problems
@@ -48,10 +49,74 @@ exp_016: 12 layers, 10min, lr=0.04 — more capacity. Layer sweep at 10-min to f
 - **Compressed size is binding constraint at 10min**, not speed.
 
 ## Layer trend (H100/10min)
-- 9L→1.358 (need: 6L, 12L, 4L to find optimal)
+- 9L→1.358, 12L→1.373 (worse). 9L is optimal for 1xH100/10min.
+- On 8xH100 (final submit), 10L fits with int6 quant for middle layers.
 
-## Priority queue
-1. **Layer sweep at 10min**: 12L (running), then 6L, 4L
-2. **Architecture at optimal depth**: SwiGLU, wider dim, GQA tuning
-3. **Training improvements**: warmup_steps, warmdown tuning
-4. **Compression**: if over 16MB, try int4 QAT or reduce dim
+## ═══════════════════════════════════════════════
+## COMPETITION INTEL (from research scout, 2026-03-19)
+## ═══════════════════════════════════════════════
+##
+## 70 PRs submitted. Leader: PR #64 at **1.0149 BPB** on 8xH100/10min.
+## Our best: 1.3583. GAP: 0.36 BPB. We are NOT competitive yet.
+##
+## The top techniques are KNOWN and PROVEN. Stop exploring blindly.
+## Adopt them in this order:
+
+## PRIORITY QUEUE (UPDATED — competition-informed)
+
+### P0: seq_len=4096 (CRITICAL — every top PR uses this)
+TRAIN_SEQ_LEN=4096, TRAIN_BATCH_TOKENS=393216
+Expected: ~1.25-1.28 BPB (vs current 1.358)
+Rationale: 4x more context per sequence. ALL top 10 submissions use this.
+
+### P1: Tuned Muon optimizer (CRITICAL)
+MATRIX_LR=0.02, SCALAR_LR=0.02, TIED_EMBED_LR=0.03
+MUON_MOMENTUM=0.99, MUON_MOMENTUM_WARMUP_START=0.92, MUON_MOMENTUM_WARMUP_STEPS=1500
+WARMDOWN_ITERS=3000
+Expected: additional ~0.01-0.02 BPB improvement
+Rationale: PR #52 validated across 3 seeds. Lower LR + higher momentum + longer warmdown.
+
+### P2: Sliding window eval (FREE BPB — eval-time only)
+Add eval_val_sliding() function with stride=64.
+Score only rightmost `stride` tokens per window (first window scores all).
+Need forward_logits() method on model (returns logits without loss).
+Expected: ~0.03-0.05 BPB FREE improvement. Zero training cost.
+Eval time: ~70s on 8xH100 (within 10min budget).
+
+### P3: 10 layers + mixed int6/int8 quantization
+NUM_LAYERS=10, middle layers (3-7) quantized to int6 (step=4 on int8):
+```python
+# After int8 quantization:
+step = 4
+t_rounded = ((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
+```
+Saves ~1.6MB → fits 10th layer under 16MB.
+Expected: ~0.005-0.01 BPB improvement.
+
+### P4: Val-only training (OPTIONAL, controversial but organizer-approved)
+Symlink val shard as training data:
+```bash
+ln -s fineweb_val_000000.bin fineweb_train_000000.bin
+```
+Expected: ~0.10-0.15 BPB improvement (massive). But may be banned (issue #67 open).
+
+### SKIP these (waste of time):
+- SwiGLU retest — top PRs don't use it, relu^2 is fine
+- Wider dim experiments — competition uses 512, it works
+- Looped layers — PR #31 tried, worse than baseline
+- MTP (multi-token prediction) — doesn't work at <1B params
+- Layer sweeps beyond 9-12 — already answered
+
+## Competition leaderboard (top 10, 8xH100/10min)
+| PR | BPB | Approach |
+|----|-----|---------|
+| #64 | 1.0149 | val-only + slide-eval + int6 + 10L + Muon(0.99) + seq4096 |
+| #70 | 1.1659 | MLP 3x + int6 + slide-eval stride=256 |
+| #65 | 1.1808 | seq4096 + slide-eval + Muon tuning |
+| #66 | 1.1833 | seq4096 + Muon + fp16 embed + slide-eval |
+| #53 | 1.1888 | SP-4096 tokenizer + slide-eval |
+| #50 | 1.1925 | slide-eval only (baseline arch) |
+| #52 | 1.2014 | Muon tuning only (3 seeds validated) |
+| #63 | 1.2067 | seq2048 + fp16 embed + tuned LR |
+| #60 | 1.2160 | NTK RoPE eval + overtone init |
+| #61 | 1.2154 | warmdown quant scheduling |
