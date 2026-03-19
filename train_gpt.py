@@ -70,6 +70,14 @@ class Hyperparameters:
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
+    # Taguchi experiment flags
+    ortho_init = bool(int(os.environ.get("ORTHO_INIT", "0")))       # F2
+    bigram_hash = bool(int(os.environ.get("BIGRAM_HASH", "0")))     # F3
+    smear_gate = bool(int(os.environ.get("SMEAR_GATE", "0")))       # F4
+    fp16_embed = bool(int(os.environ.get("FP16_EMBED", "0")))       # F5
+    primer_conv = bool(int(os.environ.get("PRIMER_CONV", "0")))     # F6
+    int6_postquant = bool(int(os.environ.get("INT6_POSTQUANT", "0")))  # F7
+
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
@@ -560,6 +568,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        primer_conv: bool = False,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -579,12 +588,24 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.primer_conv = primer_conv
+        if primer_conv:
+            self.q_conv = nn.Conv1d(dim, dim, 3, padding=1, groups=dim)
+            self.k_conv = nn.Conv1d(kv_dim, kv_dim, 3, padding=1, groups=kv_dim)
+            self.v_conv = nn.Conv1d(kv_dim, kv_dim, 3, padding=1, groups=kv_dim)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q_flat = self.c_q(x)
+        k_flat = self.c_k(x)
+        v_flat = self.c_v(x)
+        if self.primer_conv:
+            q_flat = self.q_conv(q_flat.transpose(1, 2)).transpose(1, 2)
+            k_flat = self.k_conv(k_flat.transpose(1, 2)).transpose(1, 2)
+            v_flat = self.v_conv(v_flat.transpose(1, 2)).transpose(1, 2)
+        q = q_flat.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k_flat.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = v_flat.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -629,11 +650,16 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        primer_conv: bool = False,
+        smear_gate: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, primer_conv=primer_conv)
+        self._smear_gate = smear_gate
+        if smear_gate:
+            self.smear_param = nn.Parameter(torch.zeros(1, dtype=torch.float32))
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -642,6 +668,9 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        if self._smear_gate:
+            gate = torch.sigmoid(self.smear_param.to(dtype=x.dtype))
+            x = x + gate * F.pad(x[:, :-1], (0, 0, 1, 0))
         attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
@@ -662,6 +691,9 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        bigram_hash: bool = False,
+        smear_gate: bool = False,
+        primer_conv: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -669,7 +701,11 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self._bigram_hash = bigram_hash
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        if bigram_hash:
+            self.bigram_table = nn.Embedding(vocab_size, model_dim)
+            nn.init.normal_(self.bigram_table.weight, mean=0.0, std=0.001)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -683,6 +719,8 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    primer_conv=primer_conv,
+                    smear_gate=smear_gate,
                 )
                 for i in range(num_layers)
             ]
@@ -702,6 +740,11 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
+        if self._bigram_hash:
+            # Hash previous token to create bigram embedding, add to positions 1+
+            prev_ids = F.pad(input_ids[:, :-1], (1, 0), value=0)
+            bigram_ids = (prev_ids * 1024 + input_ids) % self.tok_emb.num_embeddings
+            x = x + self.bigram_table(bigram_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -838,11 +881,23 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        bigram_hash=args.bigram_hash,
+        smear_gate=args.smear_gate,
+        primer_conv=args.primer_conv,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    # F2: Orthogonal init for all linear weights
+    if args.ortho_init:
+        with torch.no_grad():
+            for m in base_model.modules():
+                if isinstance(m, nn.Linear) and m.weight.dim() == 2 and not getattr(m, "_zero_init", False):
+                    nn.init.orthogonal_(m.weight)
+    # F5: fp16 tied embeddings
+    if args.fp16_embed and args.tie_embeddings:
+        base_model.tok_emb.weight.data = base_model.tok_emb.weight.data.half()
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -860,13 +915,17 @@ def main() -> None:
     scalar_params = [
         p
         for name, p in block_named_params
-        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        if (p.ndim < 2 or p.ndim == 3 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS))
+        and p.ndim != 2
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    embed_params = [base_model.tok_emb.weight]
+    if hasattr(base_model, 'bigram_table'):
+        embed_params.append(base_model.bigram_table.weight)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
-        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
+        [{"params": embed_params, "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
         fused=True,
@@ -1077,6 +1136,12 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    # F7: int6 post-quant — reduce precision of quantized weights for better compression
+    if args.int6_postquant:
+        step = 4
+        for name in list(quant_obj["quantized"].keys()):
+            q = quant_obj["quantized"][name]
+            quant_obj["quantized"][name] = ((q.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()

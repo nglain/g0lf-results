@@ -395,5 +395,17 @@
     "reason": "Improvement: -0.003 bpb vs exp_030. ROPE_BASE=200000 confirmed helpful (PR #120). New best roundtrip: 1.2075.",
     "duration_sec": 600,
     "gpu": "8xH100"
+  },
+  {
+    "id": "exp_034",
+    "hypothesis": "8xH100: seq1024 + competition Muon + ROPE=200K — more steps vs longer context",
+    "val_bpb": 1.2262,
+    "val_bpb_roundtrip": 1.2339,
+    "compressed_bytes": 15821077,
+    "steps_completed": 9786,
+    "status": "discard",
+    "reason": "Much worse than seq4096 (1.2339 vs 1.2075). Despite 9786 steps vs 7390, shorter context hurts. seq4096 wins on 8xH100.",
+    "duration_sec": 600,
+    "gpu": "8xH100"
   }
 ]
