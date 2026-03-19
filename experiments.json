@@ -407,5 +407,17 @@
     "reason": "Much worse than seq4096 (1.2339 vs 1.2075). Despite 9786 steps vs 7390, shorter context hurts. seq4096 wins on 8xH100.",
     "duration_sec": 600,
     "gpu": "8xH100"
+  },
+  {
+    "id": "exp_035",
+    "hypothesis": "8xH100: larger batch=786K + competition Muon + ROPE=200K",
+    "val_bpb": 1.2168,
+    "val_bpb_roundtrip": 1.2190,
+    "compressed_bytes": 15587350,
+    "steps_completed": 3819,
+    "status": "discard",
+    "reason": "Worse: 1.2190 vs 1.2075 (exp_033). Larger batch = only 3819 steps, too few even with more tokens/step. batch=524K is optimal.",
+    "duration_sec": 600,
+    "gpu": "8xH100"
   }
 ]
