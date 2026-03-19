@@ -49,9 +49,15 @@ exp_021: Try seq_len=2048 on 9L — balance between context and total tokens on 
 - NTK RoPE eval: PR #60 (try this)
 - warmdown quant scheduling: PR #61 (try this)
 
+## NEW: PR #77 — LoRA TTT = 1.195 BPB (potential new record!)
+Sliding window + LoRA Test-Time Training. First competitive TTT result.
+TTT = adapt model on each document's prefix at eval time (1-step SGD on last layers).
+With 10 min eval budget this is viable. Worth investigating for our submission.
+
 ## Priority queue
 1. seq_len=2048 (balance context vs total tokens on 1xH100)
 2. MLP 3x expansion (PR #70 approach)
 3. fp16 tok_emb (smaller compressed size → room for more layers)
 4. NTK RoPE at eval (free improvement like slide eval)
 5. int6 middle layers + 10th layer
+6. **NEW**: LoRA TTT at eval (PR #77, 1.195 bpb — huge if real)
